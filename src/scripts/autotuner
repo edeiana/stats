@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Set the seed
+seedConf="" ;
+if [[ "${SEED_CONF}" != "" ]] ; then
+  seedConf=`python ${REPO_PATH}/scripts/genSeedConf.py ${SEED_CONF}` ;
+fi
+
+# Move to the autotuner working directory
+cd ${REPO_PATH}/src/scripts/autotunerDesignSpace ;
+
+# Invoke the autotuner
+python autotuneProgram.py --no-dups --stop-after=$1 --parallelism=1 ${seedConf} ;
+autotunerExitCode=$? ;
+
+# Remove temporary files
+if [[ "${SEED_CONF}" != "" ]] ; then
+  python ${REPO_PATH}/scripts/rmSeedConf.py ${seedConf} ;
+fi
+
+# Exit
+exit ${autotunerExitCode} ;

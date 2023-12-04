@@ -1,0 +1,107 @@
+#!/bin/bash
+
+######################################################
+# Set Toolchain for VPM
+export CLANG_HOME=`llvm-config --prefix`
+export VPMCC_HOME="${PARSECDIR}/.." 
+
+export VPMCONF_CLANG_PATH="$CLANG_HOME/bin"
+export CC="${VPMCC_HOME}/scripts/top-c"
+export CXX="${VPMCC_HOME}/scripts/top-c++"
+######################################################
+
+# BINUTIL_HOME is installation root of the GNU binutils
+export BINUTIL_HOME="/usr"
+# GNUTOOL_HOME is installation root of the GNU tools
+export GNUTOOL_HOME="/usr"
+# BINARY_PREFIX is the string which is used as prefix for the GNU binaries
+export BINARY_PREFIX=""
+
+# Compilers and preprocessors
+# CC_HOME is installation root of the C compiler
+export CC_HOME="$CLANG_HOME"
+
+if test "${PARSEC_CONF_COMPILER_TO_USE}" == "clang" ; then
+    export CC="${CC_HOME}/bin/clang"
+    export CXX="${CC_HOME}/bin/clang++"
+fi
+
+export CPP="/usr/bin/cpp"
+if test "${PARSEC_CONF_COMPILER_TO_USE}" == "gcc" ; then
+    export CC_HOME="/opt/rh/devtoolset-6/root/usr"
+    export CC="${CC_HOME}/bin/gcc"
+    export CXX="${CC_HOME}/bin/g++"
+    export CPP="${CC_HOME}/bin/cpp"
+fi
+
+# GNU Binutils
+export LD="${BINUTIL_HOME}/bin/${BINARY_PREFIX}ld"
+export AS="${BINUTIL_HOME}/bin/${BINARY_PREFIX}as"
+export RANLIB="${BINUTIL_HOME}/bin/${BINARY_PREFIX}ranlib"
+export STRIP="${BINUTIL_HOME}/bin/${BINARY_PREFIX}strip"
+
+if test "${PARSEC_CONF_COMPILER_TO_USE}" == "clang" ; then
+  export AR="${BINUTIL_HOME}/bin/${BINARY_PREFIX}ar"
+  export RANLIB="${BINUTIL_HOME}/bin/${BINARY_PREFIX}ranlib"
+elif test "${PARSEC_CONF_COMPILER_TO_USE}" == "gcc" ; then
+  export AR="${BINUTIL_HOME}/bin/${BINARY_PREFIX}ar"
+  export RANLIB="${BINUTIL_HOME}/bin/${BINARY_PREFIX}ranlib"
+else
+  export AR="${CLANG_HOME}/bin/llvm-ar"
+  export RANLIB="${CLANG_HOME}/bin/llvm-ranlib"
+fi
+
+# GNU Tools
+export M4="${GNUTOOL_HOME}/bin/${BINARY_PREFIX}m4"
+export MAKE="${GNUTOOL_HOME}/bin/${BINARY_PREFIX}make"
+
+# Flags for increased portability of binaries
+PORTABILITY_FLAGS=""
+
+# Arguments to use
+COPT="-O3 -DNDEBUG"
+CXXSTD="-std=c++14"
+export CFLAGS="${COPT} -g -funroll-loops ${PORTABILITY_FLAGS}"
+export CXXFLAGS=" ${COPT} -g ${CXXSTD} -funroll-loops -fpermissive -fno-exceptions ${PORTABILITY_FLAGS}"
+
+export CPPFLAGS=""
+export CXXCPPFLAGS=""
+export LDFLAGS="-L/usr/lib64 -L/usr/lib ${LDFLAGS}"
+export LDFLAGS="${LDFLAGS} -L${CC_HOME}/lib"
+export LIBS=""
+export EXTRA_LIBS=""
+export PARMACS_MACRO_FILE="pthreads"
+
+# Add PARSEC version to compiler flags
+if [ -f "${PARSECDIR}/version" ]; then
+  CFLAGS="${CFLAGS} -DPARSEC_VERSION=$(${CAT} ${PARSECDIR}/version)"
+  CXXFLAGS="${CXXFLAGS} -DPARSEC_VERSION=$(${CAT} ${PARSECDIR}/version)"
+fi
+
+# Java
+export JAVA_HOME="/usr"
+export JAVAC="${JAVA_HOME}/bin/javac"
+
+# Version numbers
+if [ -x ${CC} ]; then
+  CC_ver=$(${CC} --version)
+  #echo ${CC_ver}
+else
+  CC_ver=""
+fi
+if [ -x ${CXX} ]; then
+  CXX_ver=$(${CXX} --version)
+  #echo ${CXX_ver}
+else
+  CXX_ver=""
+fi
+if [ -x ${LD} ]; then
+  LD_ver=$(${LD} --version)
+else
+  LD_ver=""
+fi
+if [ -x ${JAVAC} ]; then
+  JAVAC_ver=$(${JAVAC} -version 2>&1)
+else
+  JAVAC_ver=""
+fi

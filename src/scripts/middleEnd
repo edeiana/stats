@@ -1,0 +1,4 @@
+#!/bin/bash
+
+${REPO_PATH}/inst/bin/middle-end-0 -emit-llvm -c $1 -o $2 ;
+exit $?

@@ -1,0 +1,303 @@
+#!/bin/bash
+
+function containsSubstring {
+  local result ;
+  result=0 ;
+  local string ;
+  string=$1 ;
+  for elem in ${@:2} ; do
+    if [[ "${elem}" == *${string}* ]] ; then
+      result=1 ;
+      break ;
+    fi
+  done
+
+  echo "${result}" ;
+}
+
+function endswith {
+  local result ;
+  result=0 ;
+  if [[ "$2" == *$1 ]] ; then
+    result=1;
+  fi
+
+  echo "${result}" ;
+}
+
+function getEndWithAll {
+  local result ;
+  result="" ;
+  local res ;
+  res="" ;
+  for elem in ${@:2} ; do
+    res=$(endswith $1 ${elem}) ;
+    if [[ "${res}" == "1" ]] ; then
+      result="${result} ${elem}" ;
+    fi
+  done
+
+  echo "${result}" ;
+}
+
+function startswith {
+  local result ;
+  result=0 ;
+  if [[ "$2" == $1* ]] ; then
+    result=1;
+  fi
+
+  echo "${result}" ;
+}
+
+function getStartWithAll {
+  local result ;
+  result="" ;
+  local res ;
+  res="" ;
+  for elem in ${@:2} ; do
+    res=$(startswith $1 ${elem}) ;
+    if [[ "${res}" == "1" ]] ; then
+      result="${result} ${elem}" ;
+    fi
+  done
+
+  echo "${result}" ;
+}
+
+function copyFromToAll {
+  local from ;
+  from=$1 ;
+  local to ;
+  to=$2 ;
+  for elem in ${@:3} ; do
+    if [ -f ${elem} ] ; then
+      cp ${elem} ${elem:0:-${#from}}${to} ;
+    fi
+  done
+}
+
+function moveFromToAll {
+  local from ;
+  from=$1 ;
+  local to ;
+  to=$2 ;
+  for elem in ${@:3} ; do
+    if [ -f ${elem} ] ; then
+      mv ${elem} ${elem:0:-${#from}}${to} ;
+    fi
+  done
+}
+
+function removeEndWithAll {
+  local result ;
+  result="" ;
+  local res ;
+  res="" ;
+  for elem in ${@:2} ; do
+    res=$(endswith $1 ${elem}) ;
+    if [[ "${res}" == "0" ]] ; then
+      result="${result} ${elem}" ;
+    fi
+  done
+
+  echo "${result}" ;
+}
+
+function unarchive {
+  local archiver ;
+  archiver=$1 ;
+  local res ;
+  res="" ;
+  local path ;
+  path="" ;
+  local currDir ;
+  currDir=`pwd` ;
+  local archiveBasename ;
+  for elem in ${@:2} ; do
+    path=$(dirname ${elem}) ;
+    cd ${path} ;
+    archiveBasename=`basename ${elem}` ;
+    ${archiver} x ${archiveBasename} ;
+    for file in $(${archiver} t ${archiveBasename}) ; do
+      res="${res} ${path}/${file}" ;
+    done
+
+    cd ${currDir} ;
+  done
+
+  echo "${res}" ;
+}
+
+function checkTO {
+  local res ;
+  res="" ;
+  local elemCopy ;
+  elemCopy="" ;
+  local tmp ;
+  tmp="tmp" ;
+  for elem in $@ ; do
+    elemCopy=${tmp}${elem} ; # TODO: find a smarter way to generate a unique filename, rather than preappending "tmp"
+    cp ${elem} ${elemCopy} ;
+    llvm0-c -emit-llvm -c ${elemCopy} &> /dev/null ;
+    if [[ "$?" == "123" ]] ; then
+      res="${res} ${elem}" ;
+    fi
+    rm ${elemCopy}* ;
+  done
+
+  echo "${res}" ;
+}
+
+function countElems {
+  echo "$@" | wc -w ;
+}
+
+function removeTO {
+  for elem in ${@:2} ; do
+    llvm-1-c -emit-llvm -c ${elem} &> /dev/null ;
+  done
+}
+
+# include common functions
+source ${REPO_PATH}/scripts/utils.sh ;
+
+# set compiler
+CC=$1 ;
+
+# get arguments
+args=${@:2} ;
+
+# set linker
+LD="llvm-link" ;
+
+# set archiver
+AR="llvm-ar" ;
+
+# set options
+OPT="" ; # -O0 -g3" ;
+
+# Find the TOP directory
+pushd ./ ;
+cd ${REPO_PATH} ;
+topDir=`pwd` ;
+popd ;
+
+# set compiler includes
+INCLUDE="${topDir}/src/include" ;
+
+# check for symbols like "-c", "-o", "conftest" and "fluidcmp"
+resultC=$(contains -c ${args}) ;
+resultO=$(contains -o ${args}) ;
+resultConftest=$(containsSubstring conftest ${args}) ; # bodytrack
+resultFluidcmp=$(containsSubstring fluidcmp ${args}) ; # fluidanimate
+
+# substitute .o with .bc in the argument list
+modifiedArgs=$(echo "${args}" | sed 's/\.o/\.bc/g') ;
+
+# get the .bc files
+argsBC=$(getEndWithAll .bc ${modifiedArgs}) ;
+
+if [[ "${resultConftest}" == "1" ]] ; then # bodytrack
+  ${CC} -I${INCLUDE} ${args} ;
+  if test $? -ne 0 ; then
+    echo "ERROR: Compilation error" ;
+    exit 1 ;
+  fi
+
+elif [[ "${resultFluidcmp}" == "1" ]] ; then # fluidanimate
+  ${CC} -I${INCLUDE} ${args} ;
+  if test $? -ne 0 ; then
+    echo "ERROR: Compilation error" ;
+    exit 1 ;
+  fi
+
+elif [[ "${resultC}" == "1" ]] ; then # generating an object file
+  ${CC} ${OPT} -I${INCLUDE} ${modifiedArgs} -emit-llvm ;
+  if test $? -ne 0 ; then
+    echo "ERROR: Compilation error" ;
+    exit 1 ;
+  fi
+  $(moveFromToAll .bc .o ${argsBC}) ;
+
+elif [[ "${resultO}" == "1" ]] ; then # generating a binary
+  BC="0.bc" ; # TODO: use sequential numbers in case of multiple bc files
+  outBC="out_${BC}" ;
+  finalBC="final.bc" ;
+  argsO=$(getEndWithAll .o ${args}) ;
+  argsA=$(getEndWithAll .a ${args}) ;
+  argsUnarchivedO=$(unarchive ${AR} ${argsA}) ;
+  argsUnarchivedBC=$(echo "${argsUnarchivedO}" | sed 's/\.o/\.bc/g') ;
+
+  # move files from .o to .bc
+  $(moveFromToAll .o .bc ${argsO}) ;
+  $(moveFromToAll .o .bc ${argsUnarchivedO}) ;
+
+  # link files
+  ${LD} ${argsBC} ${argsUnarchivedBC} -o ${BC} ;
+  if test $? != 0 -o ! -f ${BC} ; then
+    echo "ERROR: the linker couldn't link all bitcode files" ;
+    exit 1;
+  fi
+
+  # move back files from .bc to .o
+  $(moveFromToAll .bc .o ${argsBC}) ;
+  $(moveFromToAll .bc .o ${argsUnarchivedBC}) ;
+ 
+  argsNoO=$(removeEndWithAll .o ${args}) ;
+  argsNoONoA=$(removeEndWithAll .a ${argsNoO}) ;
+ 
+  # create range and index temporary files 
+  range_file=`mktemp` ;
+  index_file=`mktemp` ;
+
+  # check if the binary compiled is the benchmark
+  binaryName=`basename "$(getElem -o ${args})"` ;
+  if [[ $(startswith ${BENCHMARK_NAME} ${binaryName}) == "0" ]] ; then
+    argsNoO=$(removeEndWithAll .o ${args}) ;
+    argsNoONoA=$(removeEndWithAll .a ${argsNoO}) ;
+    ${CC} ${OPT} -I${INCLUDE} ${BC} ${argsNoONoA} -lpthread ;
+    exit $?
+  fi
+
+  # Import information for the middle-end compiler
+  confToUse=$CONFIGURATION_TO_USE ;
+
+  # Export information for the middle-end and back-end compilers
+  export RANGE_FILE=${range_file} ;
+  export INDEX_FILE=${index_file} ;
+  export ARGS_TMP="${args}";
+  export COMPILE_DIR=`pwd` ;
+
+  # Middle-end compiler
+  echo "----- MIDDLE-END COMPILER -----" ;
+  ${REPO_PATH}/src/scripts/middleEnd "${BC}" "${outBC}"
+  if [ "$?" != "0" ] ; then
+    echo "MIDDLE-END COMPILER ERROR" ;
+    exit 1 ;
+  fi
+
+  if [ "${confToUse}" != "" ] ; then
+    # Compile a specific configuration and then exit
+    confToUse=`echo $confToUse | sed 's/_/ /g'` ;
+    echo "${confToUse}" > $INDEX_FILE ;
+
+    # Invoke the backend
+    ${REPO_PATH}/src/scripts/backEnd ;
+
+  else
+
+    # Invoke the autotuner
+    echo "----- AUTOTUNER -----" ;
+    pushd ./ ;
+    ${REPO_PATH}/src/scripts/autotuner "${TUNER_TIME}"
+    popd ;
+  fi
+
+  # remove temporary range and index files
+  rm -rf ${range_file} ;
+  rm -rf ${index_file} ;
+
+else
+  ${CC} ${OPT} -I${INCLUDE} ${args} ;
+fi

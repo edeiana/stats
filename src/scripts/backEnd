@@ -1,0 +1,62 @@
+#!/bin/bash
+
+function endswith {
+  local result ;
+  result=0 ;
+  if [[ "$2" == *$1 ]] ; then
+    result=1;
+  fi
+
+  echo "${result}" ;
+}
+
+function removeEndWithAll {
+  local result ;
+  result="" ;
+  local res ;
+  res="" ;
+  for elem in ${@:2} ; do
+    res=$(endswith $1 ${elem}) ;
+    if [[ ${res} == "0" ]] ; then
+      result="${result} ${elem}" ;
+    fi
+  done
+
+  echo "${result}" ;
+}
+
+# Get args from environment variables
+args=${ARGS_TMP} ;
+compileDir=${COMPILE_DIR} ;
+
+# go to compile directory
+cd ${compileDir} ;
+
+# Set compiler inputs
+INCLUDE="${REPO_PATH}/src/include" ;
+OPT="" ;
+BC="0.bc" ;
+outBC="out_${BC}" ;
+finalBC="final.bc" ;
+
+# Set the arguments
+argsNoO=$(removeEndWithAll .o ${args}) ;
+argsNoONoA=$(removeEndWithAll .a ${argsNoO}) ;
+
+# Check the bitcode file to compile
+if ! test -f ${outBC} ; then
+  echo "ERROR: file ${outBC} doesn't exist" ;
+  exit 1;
+fi
+
+# Invoke the back-end
+echo "----- BACK-END COMPILER -----" ;
+${REPO_PATH}/inst/bin/back-end-0 -emit-llvm -c ${outBC} -o ${finalBC} ;
+if [ "$?" != "0" ] ; then
+  echo "BACK-END COMPILER ERROR" ;
+  exit 1 ;
+fi
+
+# Generate the binary
+${CC} ${OPT} -I${INCLUDE} ${finalBC} ${argsNoONoA} ;
+exit $? 

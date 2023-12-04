@@ -1,0 +1,5 @@
+#!/bin/bash
+
+CC="clang" ;
+
+${REPO_PATH}/scripts/top ${CC} $@ ;

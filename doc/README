@@ -1,0 +1,49 @@
+== PREREQUISITES ==
+
+opencv 3.2.0 (compiled with TBB disabled)
+
+
+== SETUP ==
+
+From the repository directory execute:
+
+to add the missing files needed by the parsec benchmark suite
+$ ./bin/extract_parsec.sh PATH/TO/parsec-3.0.tar.gz
+
+to clean the environment
+$ source bin/clean.sh
+
+to setup the environment
+$ source bin/setup.sh
+
+
+== COMPILE ==
+
+to compile a benchmark execute:
+$ ./bin/compile.sh -p BENCHMARK_NAME -i INPUT_TYPE -nc NUM_OF_CORES -it MAX_ITERATIONS [-ht, -conf CONF_STRING, -tunerTime TIME_IN_SECS]
+
+Example 1: the next command line compiles bodytrack using STATS, Hyper-Threading, and allowing 1 hour (3600 seconds) to the autotuner. It uses native inputs (the largest ones) as training inputs, it allows STATS to use 28 cores, the maximum number of executions for a specific configuration is 10 (note: the number of executions for a configuration can be less if the interval of confidence is within 10% of the mean).
+$ ./bin/compile.sh -p bodytrack -i native -nc 28 -it 10 -tunerTime 3600 -ht
+
+Example 2: the next command line compiles bodytrack forcing a specific configuration (underscore separated).
+$ ./bin/compile.sh -p bodytrack -i native -nc 28 -it 10 -conf 1_2_4000_4_10_2_10_5_5
+
+
+== RUN ==
+
+after a benchmark has been compiled, the best configuration can be executed using:
+$ ./bin/run.sh -p BENCHMARK_NAME -i INPUT_TYPE
+
+
+== EXTEND THE FRAMEWORK ==
+1) Add your compilers under "src" 
+
+2) Edit src/compile.sh to compile your compilers. This script is invoked by "bin/setup.sh".
+
+3) Edit scripts/frontEnd, scripts/middleEnd, and scripts/backEnd to use your front-end, middle-end, and back-end compilers
+For the front-end compiler, you need to add "src_top" sources in a benchmark and remove the related "src". Your front-end compiler is responsible to generate "src" from "src_top".
+By default, "src" already exist (the original benchmarks) and therefore the front-end compiler isn't invoked.
+
+4) Edit scripts/autotuner and scripts/autotunerDesginSpace/* if you want to change the autotuner
+
+5) Edit scripts/setup.sh if you need to copy files to "inst"

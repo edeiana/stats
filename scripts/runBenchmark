@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Set the configuration
+projectName="`cat ${REPO_PATH}/src/project.txt`" ;
+benchmarkToRun=${BENCHMARK_NAME} ;
+inputToRun=${INPUT_NAME} ;
+maxTimeToRun=${MAX_RUN_TIME} ;
+pathToBenchmarkExitCodeFile=${REPO_PATH}/parsec-3.0/pkgs/${PKG_SUBDIR}/${BENCHMARK_NAME}/run/benchmarkExitCode.txt ;
+cmdToRun="${REPO_PATH}/parsec-3.0/bin/parsecmgmt -a run -c ${projectName} -p ${benchmarkToRun} -i ${inputToRun}" ;
+
+# Signal handler
+trap "{ killall -9 burnP6 ; killall -9 ${benchmarkToRun} ; echo "130" > ${pathToBenchmarkExitCodeFile} ; exit 0 ; }" SIGINT SIGTERM ;
+
+# Autotuner is in use
+if [[ "${STATS_FLAG}" == "1" ]] ; then
+  # The current execution is not the first one
+  if [[ "${maxTimeToRun}" != ""  ]] ; then
+
+    ${REPO_PATH}/scripts/myTimer -t ${maxTimeToRun} ${cmdToRun} ;
+    exitCode=$? ;
+
+    if [[ "${exitCode}" != "0" ]] ; then
+      echo ${exitCode} > ${pathToBenchmarkExitCodeFile} ;
+    fi
+
+    killall -9 burnP6 ;
+    killall -9 ${benchmarkToRun} ;
+    exit 0;
+  fi
+fi
+
+# The current execution is the first one, just run the benchmark
+${cmdToRun} ;
+exitCode=$? ;
+
+if [[ "${exitCode}" != "0" ]] ; then
+  echo ${exitCode} > ${pathToBenchmarkExitCodeFile} ;
+fi
+
+exit 0;
